@@ -1,0 +1,50 @@
+name: release
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+jobs:
+  details:
+    runs-on: ubuntu-latest
+    outputs:
+      package_name: ${{ steps.package_information.outputs.package_name }}
+      new_version: ${{ steps.release.outputs.new_version }}
+      suffix: ${{ steps.release.outputs.suffix }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Extract tag and Details
+        id: release
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            NEW_VERSION=$(echo $TAG_NAME | awk -F'-' '{print $1}')
+            SUFFIX=$(echo $TAG_NAME | awk -F'-' '{print $2}')
+            echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+            echo "suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+            echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+            echo "Version is $NEW_VERSION"
+            echo "Suffix is $SUFFIX"
+            echo "Tag name is $TAG_NAME"
+          else
+            echo "No tag found"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Get Name of Package
+        id: package_information
+        run: |
+          PACKAGE_NAME=$(python -c "
+            import ast
+            with open('setup.py', 'r') as f:
+                tree = ast.parse(f.read(), filename='setup.py')
+                name_node = next((n for n in tree.body if isinstance(n, ast.Assign) and any(t.id == 'NAME' for t in n.targets)), None)
+                print(name_node.value.s if name_node else '')
+                ")
+          echo "Package name: $PACKAGE_NAME"
+          echo "package_name=$PACKAGE_NAME" >> "$GITHUB_OUTPUT"
